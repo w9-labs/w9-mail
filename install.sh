@@ -204,6 +204,7 @@ if [ "$FRONTEND_NEEDS_BUILD" = "true" ]; then
         npm install --prefer-offline --no-audit 2>&1 | tail -1
     fi
     npm run build 2>&1 | tail -1
+    npm run export 2>&1 | tail -1
 else
     echo "✓ Frontend is up to date, skipping rebuild"
 fi
