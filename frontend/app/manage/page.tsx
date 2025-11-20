@@ -13,6 +13,8 @@ export default function ManagePage() {
   const [accounts, setAccounts] = useState<EmailAccount[]>([])
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+  const [editingPassword, setEditingPassword] = useState<string | null>(null)
+  const [newPassword, setNewPassword] = useState('')
   const [formData, setFormData] = useState({
     email: '',
     displayName: '',
@@ -87,6 +89,33 @@ export default function ManagePage() {
       }
     } catch (error) {
       console.error('Failed to update account:', error)
+      setMessage({ type: 'error', text: 'Network error. Please try again.' })
+    }
+  }
+
+  const handlePasswordChange = async (id: string) => {
+    if (!newPassword.trim()) {
+      setMessage({ type: 'error', text: 'Password cannot be empty' })
+      return
+    }
+
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '/api'
+      const response = await fetch(`${apiUrl}/accounts/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: newPassword })
+      })
+      if (response.ok) {
+        setMessage({ type: 'success', text: 'Password updated successfully' })
+        setEditingPassword(null)
+        setNewPassword('')
+      } else {
+        const error = await response.json().catch(() => ({ message: 'Failed to update password' }))
+        setMessage({ type: 'error', text: error.message || 'Failed to update password' })
+      }
+    } catch (error) {
+      console.error('Failed to update password:', error)
       setMessage({ type: 'error', text: 'Network error. Please try again.' })
     }
   }
@@ -166,9 +195,37 @@ export default function ManagePage() {
                   {account.isActive ? 'Active' : 'Inactive'}
                 </td>
                 <td style={{ padding: '0.5rem', borderBottom: '1px solid #ddd' }}>
-                  <button onClick={() => toggleActive(account.id, account.isActive)}>
-                    {account.isActive ? 'Deactivate' : 'Activate'}
-                  </button>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <button onClick={() => toggleActive(account.id, account.isActive)}>
+                      {account.isActive ? 'Deactivate' : 'Activate'}
+                    </button>
+                    {editingPassword === account.id ? (
+                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <input
+                          type="password"
+                          placeholder="New password"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          style={{ padding: '0.25rem', fontSize: '0.9rem' }}
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              handlePasswordChange(account.id)
+                            }
+                          }}
+                        />
+                        <button onClick={() => handlePasswordChange(account.id)}>Save</button>
+                        <button onClick={() => {
+                          setEditingPassword(null)
+                          setNewPassword('')
+                        }}>Cancel</button>
+                      </div>
+                    ) : (
+                      <button onClick={() => {
+                        setEditingPassword(account.id)
+                        setNewPassword('')
+                      }}>Change Password</button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
