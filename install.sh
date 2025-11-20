@@ -19,6 +19,13 @@ BASE_URL=${BASE_URL:-https://$DOMAIN}
 APP_WEB_BASE_URL=${APP_WEB_BASE_URL:-$BASE_URL}
 FRONTEND_PUBLIC=/var/www/w9-mail
 
+is_integer() {
+    case "$1" in
+        ''|*[!0-9]*) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
 # Backup for rollback
 BACKUP_DIR=/tmp/w9-mail_backup_$$
 NEED_ROLLBACK=false
@@ -125,8 +132,10 @@ if [ -f "$ROOT_DIR/backend/target/release/w9-mail-backend" ]; then
     NEWEST_SRC=$(find "$ROOT_DIR/backend/src" "$ROOT_DIR/backend/Cargo.toml" -type f \( -name "*.rs" -o -name "Cargo.toml" \) 2>/dev/null | xargs -r stat -c %Y 2>/dev/null | sort -n | tail -n 1 2>/dev/null)
     NEWEST_SRC=${NEWEST_SRC:-0}
     BINARY_TIME=${BINARY_TIME:-0}
-    if [ "$NEWEST_SRC" -lt "$BINARY_TIME" ] && [ "$NEWEST_SRC" -gt 0 ]; then
-        BACKEND_NEEDS_BUILD=false
+    if is_integer "$NEWEST_SRC" && is_integer "$BINARY_TIME"; then
+        if [ "$NEWEST_SRC" -lt "$BINARY_TIME" ] && [ "$NEWEST_SRC" -gt 0 ]; then
+            BACKEND_NEEDS_BUILD=false
+        fi
     fi
 fi
 
@@ -135,8 +144,10 @@ if [ -d "$ROOT_DIR/frontend/out" ]; then
     NEWEST_FE=$(find "$ROOT_DIR/frontend/app" "$ROOT_DIR/frontend/public" "$ROOT_DIR/frontend/package.json" "$ROOT_DIR/frontend/next.config.js" -type f 2>/dev/null | xargs -r stat -c %Y 2>/dev/null | sort -n | tail -n 1 2>/dev/null)
     NEWEST_FE=${NEWEST_FE:-0}
     DIST_TIME=${DIST_TIME:-0}
-    if [ "$NEWEST_FE" -lt "$DIST_TIME" ] && [ "$NEWEST_FE" -gt 0 ]; then
-        FRONTEND_NEEDS_BUILD=false
+    if is_integer "$NEWEST_FE" && is_integer "$DIST_TIME"; then
+        if [ "$NEWEST_FE" -lt "$DIST_TIME" ] && [ "$NEWEST_FE" -gt 0 ]; then
+            FRONTEND_NEEDS_BUILD=false
+        fi
     fi
 fi
 
