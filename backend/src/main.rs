@@ -55,6 +55,9 @@ pub struct InboxQuery {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Load .env file for local development (ignored if not present)
+    dotenv::dotenv().ok();
+    
     let host = std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
     let port = std::env::var("PORT")
         .unwrap_or_else(|_| "8080".to_string())
