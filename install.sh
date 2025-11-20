@@ -19,6 +19,13 @@ BASE_URL=${BASE_URL:-https://$DOMAIN}
 APP_WEB_BASE_URL=${APP_WEB_BASE_URL:-$BASE_URL}
 FRONTEND_PUBLIC=/var/www/w9-mail
 
+is_integer() {
+    case "$1" in
+        ''|*[!0-9]*) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
 # Backup for rollback
 BACKUP_DIR=/tmp/w9-mail_backup_$$
 NEED_ROLLBACK=false
@@ -122,14 +129,26 @@ FRONTEND_NEEDS_BUILD=true
 
 if [ -f "$ROOT_DIR/backend/target/release/w9-mail-backend" ]; then
     BINARY_TIME=$(stat -c %Y "$ROOT_DIR/backend/target/release/w9-mail-backend" 2>/dev/null || echo 0)
-    NEWEST_SRC=$(find "$ROOT_DIR/backend/src" "$ROOT_DIR/backend/Cargo.toml" -type f \( -name "*.rs" -o -name "Cargo.toml" \) 2>/dev/null | xargs stat -c %Y 2>/dev/null | sort -n | tail -1 || echo 0)
-    [ "$NEWEST_SRC" -lt "$BINARY_TIME" ] && [ "$NEWEST_SRC" -gt 0 ] && BACKEND_NEEDS_BUILD=false
+    NEWEST_SRC=$(find "$ROOT_DIR/backend/src" "$ROOT_DIR/backend/Cargo.toml" -type f \( -name "*.rs" -o -name "Cargo.toml" \) 2>/dev/null | xargs -r stat -c %Y 2>/dev/null | sort -n | tail -n 1 2>/dev/null)
+    NEWEST_SRC=${NEWEST_SRC:-0}
+    BINARY_TIME=${BINARY_TIME:-0}
+    if is_integer "$NEWEST_SRC" && is_integer "$BINARY_TIME"; then
+        if [ "$NEWEST_SRC" -lt "$BINARY_TIME" ] && [ "$NEWEST_SRC" -gt 0 ]; then
+            BACKEND_NEEDS_BUILD=false
+        fi
+    fi
 fi
 
 if [ -d "$ROOT_DIR/frontend/out" ]; then
     DIST_TIME=$(stat -c %Y "$ROOT_DIR/frontend/out" 2>/dev/null || echo 0)
-    NEWEST_FE=$(find "$ROOT_DIR/frontend/app" "$ROOT_DIR/frontend/public" "$ROOT_DIR/frontend/package.json" "$ROOT_DIR/frontend/next.config.js" -type f 2>/dev/null | xargs stat -c %Y 2>/dev/null | sort -n | tail -1 || echo 0)
-    [ "$NEWEST_FE" -lt "$DIST_TIME" ] && [ "$NEWEST_FE" -gt 0 ] && FRONTEND_NEEDS_BUILD=false
+    NEWEST_FE=$(find "$ROOT_DIR/frontend/app" "$ROOT_DIR/frontend/public" "$ROOT_DIR/frontend/package.json" "$ROOT_DIR/frontend/next.config.js" -type f 2>/dev/null | xargs -r stat -c %Y 2>/dev/null | sort -n | tail -n 1 2>/dev/null)
+    NEWEST_FE=${NEWEST_FE:-0}
+    DIST_TIME=${DIST_TIME:-0}
+    if is_integer "$NEWEST_FE" && is_integer "$DIST_TIME"; then
+        if [ "$NEWEST_FE" -lt "$DIST_TIME" ] && [ "$NEWEST_FE" -gt 0 ]; then
+            FRONTEND_NEEDS_BUILD=false
+        fi
+    fi
 fi
 
 # Build backend (if needed)
@@ -203,7 +222,16 @@ if [ "$FRONTEND_NEEDS_BUILD" = "true" ]; then
     else
         npm install --prefer-offline --no-audit 2>&1 | tail -1
     fi
-    npm run build 2>&1 | tail -1
+    echo "Running npm run build..."
+    if ! npm run build; then
+        echo "ERROR: Frontend build failed"
+        exit 1
+    fi
+    echo "Running npm run export..."
+    if ! npm run export; then
+        echo "ERROR: Frontend export failed"
+        exit 1
+    fi
 else
     echo "✓ Frontend is up to date, skipping rebuild"
 fi
