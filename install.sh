@@ -86,19 +86,14 @@ echo "✓ Packages ready"
 # Install Rust if needed
 if ! command -v rustc &> /dev/null; then
     echo "Installing Rust..."
-    if [ "$IS_ROOT" = "true" ] && [ "$BUILD_USER" != "root" ]; then
-        # Install Rust for the build user
-        sudo -u $BUILD_USER bash -lc "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y" || true
-        # Also install for root as fallback
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y || true
-    else
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y || true
-    fi
+    # Always install Rust for root when running as root
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y || {
+        echo "Failed to install Rust"
+        exit 1
+    }
     # Source cargo env for current shell
     if [ -f "$HOME/.cargo/env" ]; then
         source "$HOME/.cargo/env"
-    elif [ "$BUILD_USER" != "root" ] && [ -f "/home/$BUILD_USER/.cargo/env" ]; then
-        source "/home/$BUILD_USER/.cargo/env"
     fi
 fi
 
@@ -125,17 +120,25 @@ fi
 if [ "$BACKEND_NEEDS_BUILD" = "true" ]; then
     echo "Building backend..."
     cd "$ROOT_DIR/backend"
-    if [ "$IS_ROOT" = "true" ] && [ "$BUILD_USER" != "root" ]; then
-        # Running as root, but build as non-root user
-        sudo -u $BUILD_USER bash -lc "cd '$ROOT_DIR/backend' && [ -f \$HOME/.cargo/env ] && source \$HOME/.cargo/env; cargo build --release" 2>&1 | tail -2
-    elif [ "$BUILD_USER" != "$(whoami)" ] && [ "$IS_ROOT" = "false" ]; then
-        # Not root, but need to switch user
-        sudo -u $BUILD_USER bash -lc "cd '$ROOT_DIR/backend' && [ -f \$HOME/.cargo/env ] && source \$HOME/.cargo/env; cargo build --release" 2>&1 | tail -2
-    else
-        # Build as current user
-        if [ -f "$HOME/.cargo/env" ]; then
-            source "$HOME/.cargo/env"
+    
+    # Setup cargo environment
+    if [ -f "$HOME/.cargo/env" ]; then
+        source "$HOME/.cargo/env"
+    elif [ "$BUILD_USER" != "root" ] && [ -f "/home/$BUILD_USER/.cargo/env" ]; then
+        export PATH="/home/$BUILD_USER/.cargo/bin:$PATH"
+    fi
+    
+    # Build as current user (root or regular user)
+    if [ "$IS_ROOT" = "true" ] && [ "$BUILD_USER" != "root" ] && id -u "$BUILD_USER" >/dev/null 2>&1; then
+        # Running as root, but try to build as non-root user if they exist
+        if [ -f "/home/$BUILD_USER/.cargo/env" ]; then
+            sudo -u $BUILD_USER bash -c "cd '$ROOT_DIR/backend' && source /home/$BUILD_USER/.cargo/env && cargo build --release" 2>&1 | tail -2
+        else
+            # Build as root if build user doesn't have cargo
+            cargo build --release 2>&1 | tail -2
         fi
+    else
+        # Build as current user (root or regular)
         cargo build --release 2>&1 | tail -2
     fi
 else
