@@ -86,6 +86,11 @@ pub async fn update_account(
     Path(id): Path<String>,
     Json(req): Json<UpdateAccountRequest>,
 ) -> Result<Json<EmailAccount>, StatusCode> {
+    // Return error if neither field was provided
+    if req.is_active.is_none() && req.password.is_none() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
     // Update is_active if provided
     if let Some(is_active) = req.is_active {
         sqlx::query("UPDATE accounts SET is_active = ? WHERE id = ?")
@@ -113,11 +118,6 @@ pub async fn update_account(
                 eprintln!("Database update error: {}", e);
                 StatusCode::INTERNAL_SERVER_ERROR
             })?;
-    }
-
-    // Return error if neither field was provided
-    if req.is_active.is_none() && req.password.is_none() {
-        return Err(StatusCode::BAD_REQUEST);
     }
 
     // Fetch and return updated account
