@@ -74,8 +74,13 @@ export default function ManagePage() {
       })
       if (response.ok) {
         const data = await response.json()
-        fetchAccounts()
+        // Update the account in the local state immediately
+        setAccounts(accounts.map(acc => 
+          acc.id === id ? { ...acc, isActive: data.isActive } : acc
+        ))
         setMessage({ type: 'success', text: `Account ${!isActive ? 'activated' : 'deactivated'} successfully` })
+        // Also refresh from server to ensure consistency
+        setTimeout(() => fetchAccounts(), 100)
       } else {
         const error = await response.json().catch(() => ({ message: 'Failed to update account' }))
         setMessage({ type: 'error', text: error.message || 'Failed to update account' })

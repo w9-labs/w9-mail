@@ -33,6 +33,7 @@ pub struct EmailAccount {
     pub email: String,
     #[serde(rename = "displayName")]
     pub display_name: String,
+    #[serde(rename = "isActive")]
     pub is_active: bool,
 }
 
