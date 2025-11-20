@@ -203,8 +203,16 @@ if [ "$FRONTEND_NEEDS_BUILD" = "true" ]; then
     else
         npm install --prefer-offline --no-audit 2>&1 | tail -1
     fi
-    npm run build 2>&1 | tail -1
-    npm run export 2>&1 | tail -1
+    echo "Running npm run build..."
+    if ! npm run build; then
+        echo "ERROR: Frontend build failed"
+        exit 1
+    fi
+    echo "Running npm run export..."
+    if ! npm run export; then
+        echo "ERROR: Frontend export failed"
+        exit 1
+    fi
 else
     echo "✓ Frontend is up to date, skipping rebuild"
 fi
