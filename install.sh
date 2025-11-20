@@ -188,7 +188,8 @@ fi
 
 if [ -d "$ROOT_DIR/frontend/out" ]; then
     DIST_TIME=$(stat -c %Y "$ROOT_DIR/frontend/out" 2>/dev/null || echo 0)
-    NEWEST_FE=$(find "$ROOT_DIR/frontend/app" "$ROOT_DIR/frontend/public" "$ROOT_DIR/frontend/package.json" "$ROOT_DIR/frontend/next.config.js" -type f 2>/dev/null | xargs -r stat -c %Y 2>/dev/null | sort -n | tail -n 1 2>/dev/null)
+    # Some paths (like frontend/public) might not exist; ensure the pipeline doesn't fail under 'set -euo pipefail'
+    NEWEST_FE=$(find "$ROOT_DIR/frontend/app" "$ROOT_DIR/frontend/public" "$ROOT_DIR/frontend/package.json" "$ROOT_DIR/frontend/next.config.js" -type f 2>/dev/null | xargs -r stat -c %Y 2>/dev/null | sort -n | tail -n 1 2>/dev/null || true)
     NEWEST_FE=${NEWEST_FE:-0}
     DIST_TIME=${DIST_TIME:-0}
     if is_integer "$NEWEST_FE" && is_integer "$DIST_TIME"; then
