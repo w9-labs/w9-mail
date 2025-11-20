@@ -124,7 +124,9 @@ ensure_node() {
     fi
 
     if [ "$install_node" = "true" ]; then
-        curl -fsSL https://deb.nodesource.com/setup_20.x | $SUDO_CMD bash -
+        echo "Setting up Node.js 20.x from NodeSource..."
+        curl -fsSL https://deb.nodesource.com/setup_20.x | $SUDO_CMD bash - >/dev/null
+        $SUDO_CMD apt-get update -qq >/dev/null 2>&1 || true
         $SUDO_CMD apt-get install -y nodejs >/dev/null 2>&1
     fi
 }
