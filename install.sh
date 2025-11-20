@@ -58,7 +58,7 @@ fi
 JWT_SECRET_VALUE="${JWT_SECRET:-}"
 if [ -z "$JWT_SECRET_VALUE" ]; then
     if [ -f "/etc/default/$SERVICE_NAME" ]; then
-        EXISTING_JWT_SECRET=$($SUDO_CMD grep '^JWT_SECRET=' /etc/default/$SERVICE_NAME 2>/dev/null | tail -n 1 | cut -d'=' -f2-)
+        EXISTING_JWT_SECRET=$($SUDO_CMD sed -n 's/^JWT_SECRET=//p' /etc/default/$SERVICE_NAME 2>/dev/null | tail -n 1)
     else
         EXISTING_JWT_SECRET=""
     fi
