@@ -491,6 +491,7 @@ pub async fn send_email(
         body,
         cc,
         bcc,
+        is_html,
     } = req;
 
     let from_address = from.trim().to_string();
@@ -519,7 +520,7 @@ pub async fn send_email(
         &body,
         cc.as_deref(),
         bcc.as_deref(),
-        false,
+        is_html,
     ).await {
         Ok(_) => {
             Ok(Json(serde_json::json!({

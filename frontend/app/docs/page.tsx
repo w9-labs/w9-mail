@@ -175,9 +175,9 @@ REQUEST:
 
             <article>
               <h3>POST /api/send</h3>
-              <p>Normal and developer users only. Admin JWTs are rejected.</p>
+              <p>Send email using any registered account or alias. Available to user, dev, and admin roles. The <code>from</code> address must match a registered account email or alias email that is active.</p>
               <pre>{`HEADERS:
-Authorization: Bearer &lt;user|dev jwt&gt;
+Authorization: Bearer &lt;user|dev|admin jwt&gt;
 
 REQUEST:
 {
@@ -185,9 +185,29 @@ REQUEST:
   "to": "to@domain.com",
   "subject": "string",
   "body": "string",
-  "cc": "optional",
-  "bcc": "optional"
+  "cc": "optional string (comma-separated)",
+  "bcc": "optional string (comma-separated)",
+  "isHtml": false
+}
+
+RESPONSE:
+{
+  "status": "sent",
+  "message": "Email sent successfully"
+}
+
+ERROR RESPONSE:
+{
+  "status": "error",
+  "message": "Sender account or alias not found or inactive"
 }`}</pre>
+              <p><strong>Notes:</strong></p>
+              <ul style={{ marginLeft: '20px', marginTop: '8px' }}>
+                <li>The <code>from</code> field accepts either a base account email or an alias email. Aliases will send via their associated account credentials.</li>
+                <li>Set <code>isHtml</code> to <code>true</code> to send HTML-formatted emails. When <code>false</code> or omitted, emails are sent as plain text.</li>
+                <li>Multiple recipients in <code>to</code>, <code>cc</code>, or <code>bcc</code> should be comma-separated.</li>
+                <li>The sender account or alias must be active for the email to be sent.</li>
+              </ul>
             </article>
 
             <article>

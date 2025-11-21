@@ -137,6 +137,8 @@ pub struct SendEmailRequest {
     pub cc: Option<String>,
     #[serde(default)]
     pub bcc: Option<String>,
+    #[serde(default, rename = "isHtml")]
+    pub is_html: bool,
 }
 
 #[derive(Deserialize)]
