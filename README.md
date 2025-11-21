@@ -18,16 +18,14 @@ the provided `install.sh` script.
 git clone https://github.com/ShayNeeo/w9-mail.git
 cd w9-mail
 
-# export env vars (see Environment section)
-export APP_PORT=8080
-export DOMAIN=w9.nu
-export BASE_URL=https://w9.nu
-export MICROSOFT_CLIENT_ID=...
-export MICROSOFT_CLIENT_SECRET_ID=...
-export MICROSOFT_TENANT_ID=...
-
-# Run installer (builds backend/frontend, configures systemd & nginx)
-./install.sh
+# Run installer with env inline so sudo receives them
+DOMAIN=w9.nu \
+BASE_URL=https://w9.nu \
+APP_PORT=8080 \
+MICROSOFT_CLIENT_ID=... \
+MICROSOFT_CLIENT_SECRET_ID=... \
+MICROSOFT_TENANT_ID=... \
+sudo -E ./install.sh
 ```
 
 The installer will:
@@ -51,7 +49,7 @@ by `install.sh`). The most important settings are:
 | `BASE_URL` | Public base URL | `https://w9.nu` |
 | `DATABASE_PATH` | SQLite file path | `/opt/w9-mail/data/w9mail.db` |
 | `MICROSOFT_CLIENT_ID` | Azure App (client) ID | _required_ |
-| `MICROSOFT_CLIENT_SECRET_ID` | Azure client secret | _required_ |
+| `MICROSOFT_CLIENT_SECRET_ID` | Azure client secret (or use `MICROSOFT_CLIENT_SECRET`) | _required_ |
 | `MICROSOFT_CLIENT_VALUE` | Optional custom value | _(empty)_ |
 | `MICROSOFT_TENANT_ID` | Azure tenant/directory ID | _required_ |
 | `MICROSOFT_REDIRECT_URI` | OAuth redirect URL | `https://w9.nu/api/auth/callback` |
@@ -74,6 +72,16 @@ Key features:
 - `/docs` page with API usage
 - `/api/send` endpoint sending via Microsoft SMTP (STARTTLS)
 - `/api/accounts` CRUD for sender accounts
+
+## Service-to-Service Usage
+
+Applications (such as **w9-tools**) call the API by presenting a JWT in the `Authorization: Bearer` header. Obtain the token by logging in via `/api/auth/login` (with an admin or dev account). Common endpoints:
+
+- `POST /api/send` – send an email using an account/alias. Request body requires camelCase `isHtml`.
+- `GET/PUT /api/settings/default-sender` – fetch or change the default sender (account vs alias) used for transactional mail.
+- `GET /api/accounts`, `GET /api/aliases` – list available Microsoft-backed senders.
+
+When integrating with w9-tools set `W9_MAIL_API_URL` (usually `https://w9.nu`) and `W9_MAIL_API_TOKEN=<JWT>` inside `/etc/default/w9`. The tools admin panel can then fetch the sender list and let you choose the default without touching w9-mail directly.
 
 ## Deployment Notes
 
