@@ -143,7 +143,8 @@ export default function Home() {
           subject: formData.subject,
           body: formData.body,
           cc: formData.cc || undefined,
-          bcc: formData.bcc || undefined
+          bcc: formData.bcc || undefined,
+          isHtml: true
         })
       })
 

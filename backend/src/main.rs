@@ -13,8 +13,9 @@ mod mailer;
 
 use handlers::*;
 use auth::{
-    change_password, confirm_password_reset, create_user, delete_user, ensure_default_admin,
-    list_users, login, me, request_password_reset, signup, update_user, verify_signup,
+    change_password, confirm_password_reset, create_api_token, create_user, delete_api_token,
+    delete_user, ensure_default_admin, list_api_tokens, list_users, login, me,
+    request_password_reset, signup, update_user, verify_signup,
 };
 use mailer::SenderKind;
 
@@ -309,6 +310,22 @@ async fn main() -> anyhow::Result<()> {
     .execute(&db)
     .await?;
 
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS api_tokens (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            token_hash TEXT UNIQUE NOT NULL,
+            name TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_used_at DATETIME,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        "#,
+    )
+    .execute(&db)
+    .await?;
+
     ensure_default_admin(&db).await?;
 
     // Load Microsoft OAuth2 configuration
@@ -354,6 +371,8 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/api/auth/change-password", post(change_password))
         .route("/api/auth/me", get(me))
+        .route("/api/api-tokens", get(list_api_tokens).post(create_api_token))
+        .route("/api/api-tokens/:id", axum::routing::delete(delete_api_token))
         .route("/api/users", get(list_users).post(create_user))
         .route(
             "/api/users/:id",

@@ -15,8 +15,10 @@ use chrono::{Duration, Utc};
 use rand_core::OsRng;
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
+use sha2::{Sha256, Digest};
 use sqlx::{Row, SqlitePool};
 use uuid::Uuid;
+use rand::Rng;
 
 use crate::{email::EmailService, mailer, AppState};
 
@@ -215,6 +217,44 @@ where
                 )
             })?;
 
+        // First, try to authenticate as API token (hash the token with SHA256 and check against database)
+        let mut hasher = Sha256::new();
+        hasher.update(token.as_bytes());
+        let token_hash = format!("{:x}", hasher.finalize());
+        
+        let api_token_row = sqlx::query(
+            "SELECT u.id, u.email, u.role, u.must_change_password FROM api_tokens at
+             INNER JOIN users u ON at.user_id = u.id
+             WHERE at.token_hash = ?"
+        )
+        .bind(&token_hash)
+        .fetch_optional(&app_state.db)
+        .await
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to check API token"))?;
+
+        if let Some(row) = api_token_row {
+            // Update last_used_at
+            let _ = sqlx::query(
+                "UPDATE api_tokens SET last_used_at = CURRENT_TIMESTAMP WHERE token_hash = ?"
+            )
+            .bind(&token_hash)
+            .execute(&app_state.db)
+            .await;
+
+            let role = row
+                .get::<String, _>(2)
+                .try_into()
+                .map_err(|_| (StatusCode::UNAUTHORIZED, "Invalid role"))?;
+
+            return Ok(AuthUser {
+                id: row.get::<String, _>(0),
+                email: row.get::<String, _>(1),
+                role,
+                must_change_password: row.get::<bool, _>(3),
+            });
+        }
+
+        // If not an API token, try JWT token
         let decoding_key = DecodingKey::from_secret(app_state.jwt_secret.as_bytes());
         let token_data = decode::<Claims>(&token, &decoding_key, &Validation::default())
             .map_err(|_| (StatusCode::UNAUTHORIZED, "Invalid or expired token"))?;
@@ -592,7 +632,7 @@ pub async fn request_password_reset(
     let reset_url = format!("{}/reset-password?token={}", base_url, token);
     let body_lines = vec![
         format!("We received a reset request for {}.", email),
-        "If you didn't request it, you can ignore this email.".to_string(),
+        "This link expires in 30 minutes. If you didn't request it, you can ignore this email.".to_string(),
     ];
     let email_body =
         build_system_email_html("Reset your W9 Mail password", &body_lines, "Reset password", &reset_url);
@@ -975,5 +1015,137 @@ impl fmt::Display for UserRole {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_str())
     }
+}
+
+// API Token management
+
+#[derive(Serialize, Deserialize)]
+pub struct ApiTokenSummary {
+    pub id: String,
+    #[serde(rename = "name")]
+    pub name: Option<String>,
+    #[serde(rename = "createdAt")]
+    pub created_at: String,
+    #[serde(rename = "lastUsedAt")]
+    pub last_used_at: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct CreateApiTokenRequest {
+    #[serde(rename = "name")]
+    pub name: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct CreateApiTokenResponse {
+    pub id: String,
+    #[serde(rename = "token")]
+    pub token: String,
+    #[serde(rename = "name")]
+    pub name: Option<String>,
+    #[serde(rename = "createdAt")]
+    pub created_at: String,
+    #[serde(rename = "message")]
+    pub message: String,
+}
+
+fn generate_api_token() -> String {
+    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let mut rng = rand::thread_rng();
+    (0..64)
+        .map(|_| {
+            let idx = rng.gen_range(0..CHARSET.len());
+            CHARSET[idx] as char
+        })
+        .collect()
+}
+
+pub async fn create_api_token(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Json(payload): Json<CreateApiTokenRequest>,
+) -> Result<Json<CreateApiTokenResponse>, StatusCode> {
+    user.ensure_password_updated()?;
+    
+    // Generate a random token
+    let token = generate_api_token();
+    
+    // Hash the token with SHA256
+    let mut hasher = Sha256::new();
+    hasher.update(token.as_bytes());
+    let token_hash = format!("{:x}", hasher.finalize());
+    
+    let token_id = Uuid::new_v4().to_string();
+    let created_at = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    
+    sqlx::query(
+        "INSERT INTO api_tokens (id, user_id, token_hash, name, created_at) VALUES (?, ?, ?, ?, ?)"
+    )
+    .bind(&token_id)
+    .bind(&user.id)
+    .bind(&token_hash)
+    .bind(payload.name.as_deref())
+    .bind(&created_at)
+    .execute(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    Ok(Json(CreateApiTokenResponse {
+        id: token_id,
+        token,
+        name: payload.name,
+        created_at,
+        message: "API token created. Save this token now - you won't be able to see it again!".to_string(),
+    }))
+}
+
+pub async fn list_api_tokens(
+    State(state): State<AppState>,
+    user: AuthUser,
+) -> Result<Json<Vec<ApiTokenSummary>>, StatusCode> {
+    user.ensure_password_updated()?;
+    
+    let rows = sqlx::query(
+        "SELECT id, name, created_at, last_used_at FROM api_tokens WHERE user_id = ? ORDER BY created_at DESC"
+    )
+    .bind(&user.id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    let tokens: Vec<ApiTokenSummary> = rows
+        .into_iter()
+        .map(|row| ApiTokenSummary {
+            id: row.get::<String, _>(0),
+            name: row.get::<Option<String>, _>(1),
+            created_at: row.get::<String, _>(2),
+            last_used_at: row.get::<Option<String>, _>(3),
+        })
+        .collect();
+    
+    Ok(Json(tokens))
+}
+
+pub async fn delete_api_token(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(token_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    user.ensure_password_updated()?;
+    
+    let result = sqlx::query(
+        "DELETE FROM api_tokens WHERE id = ? AND user_id = ?"
+    )
+    .bind(&token_id)
+    .bind(&user.id)
+    .execute(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    if result.rows_affected() == 0 {
+        return Err(StatusCode::NOT_FOUND);
+    }
+    
+    Ok(StatusCode::NO_CONTENT)
 }
 

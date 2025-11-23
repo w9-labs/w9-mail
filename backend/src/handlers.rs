@@ -683,13 +683,21 @@ pub async fn send_email(
 
     // Create email service and send email
     let email_service = EmailService::new();
+    
+    // If HTML, wrap body in W9 Mail template (matching w9-tools design)
+    let final_body = if is_html {
+        crate::email::render_email_template(&body)
+    } else {
+        body.clone()
+    };
+    
     match email_service.send_email(
         &from_address,
         &resolved.auth_email,
         &resolved.auth_password,
         &to,
         &subject,
-        &body,
+        &final_body,
         cc.as_deref(),
         bcc.as_deref(),
         is_html,
