@@ -6,6 +6,7 @@ import Nav from '../components/Nav'
 
 export default function DocsPage() {
   const { session } = useSession()
+  const isNormalUser = session && session.role === 'user'
 
   return (
     <main className="app">
@@ -15,6 +16,17 @@ export default function DocsPage() {
       </header>
 
       <Nav active="docs" />
+
+      {isNormalUser && (
+        <section className="box" style={{ backgroundColor: '#1a1a1a', border: '2px solid #666' }}>
+          <p style={{ margin: 0, color: '#fff' }}>
+            <strong>Note:</strong> As a normal user, you can read this API documentation, but you cannot use the API endpoints. Only dev users and admins have access to the API.
+          </p>
+          <p style={{ marginTop: '16px', marginBottom: 0, color: '#fff' }}>
+            To apply for Dev user access, send an email to <a href="mailto:hi@w9.nu" style={{ color: '#fff', textDecoration: 'underline' }}>hi@w9.nu</a> with valid reasons for your application.
+          </p>
+        </section>
+      )}
 
       <>
           <section className="box">

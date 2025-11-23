@@ -613,9 +613,13 @@ export default function ManagePage() {
           <h1>W9 Mail / Accounts</h1>
           <p>Only dev users and admins can manage the Microsoft sender registry.</p>
         </header>
+        <Nav active="manage" />
         <section className="box">
-          <p>This section is locked. Sign in with a dev or admin profile.</p>
-          <button className="button subtle" onClick={logout}>
+          <p>This section is locked. To add accounts and aliases, you need to apply to become a Dev user.</p>
+          <p style={{ marginTop: '16px' }}>
+            Send an email to <a href="mailto:hi@w9.nu" style={{ color: '#fff', textDecoration: 'underline' }}>hi@w9.nu</a> with valid reasons for your application.
+          </p>
+          <button className="button subtle" onClick={logout} style={{ marginTop: '16px' }}>
             Switch account
           </button>
         </section>
