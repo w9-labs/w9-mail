@@ -58,6 +58,7 @@ export default function LoginPage() {
       const data = await response.json()
       saveSession({
         token: data.token,
+        id: data.id,
         email: data.email,
         role: data.role,
         mustChangePassword: data.mustChangePassword

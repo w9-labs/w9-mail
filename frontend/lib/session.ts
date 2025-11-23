@@ -4,6 +4,7 @@ export type SessionRole = 'admin' | 'dev' | 'user'
 
 export interface SessionPayload {
   token: string
+  id: string
   email: string
   role: SessionRole
   mustChangePassword: boolean

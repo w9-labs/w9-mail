@@ -118,6 +118,7 @@ pub struct LoginRequest {
 #[derive(Serialize)]
 pub struct LoginResponse {
     pub token: String,
+    pub id: String,
     pub email: String,
     pub role: UserRole,
     #[serde(rename = "mustChangePassword")]
@@ -342,6 +343,7 @@ pub async fn login(
 
     Ok(Json(LoginResponse {
         token,
+        id: row.get::<String, _>(0),
         email: payload.email,
         role,
         must_change_password: row.get::<bool, _>(4),
