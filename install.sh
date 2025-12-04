@@ -174,6 +174,24 @@ id -u $SERVICE_USER >/dev/null 2>&1 || $SUDO_CMD useradd --system --create-home 
 BACKEND_NEEDS_BUILD=true
 FRONTEND_NEEDS_BUILD=true
 
+# Auto-update Rust toolchain and backend crate dependencies (best-effort)
+echo "Checking Rust toolchain and dependencies..."
+if command -v rustup >/dev/null 2>&1; then
+    echo "Updating Rust toolchain with rustup..."
+    if ! rustup update stable >/dev/null 2>&1; then
+        echo "⚠ rustup update failed (continuing with existing toolchain)"
+    fi
+else
+    echo "⚠ rustup not found, skipping Rust toolchain auto-update"
+fi
+
+if command -v cargo >/dev/null 2>&1; then
+    echo "Running cargo update for backend..."
+    (cd "$ROOT_DIR/backend" && cargo update) || echo "⚠ cargo update failed (continuing with existing Cargo.lock)"
+else
+    echo "⚠ cargo not found, skipping cargo update"
+fi
+
 if [ -f "$ROOT_DIR/backend/target/release/w9-mail-backend" ]; then
     BINARY_TIME=$(stat -c %Y "$ROOT_DIR/backend/target/release/w9-mail-backend" 2>/dev/null || echo 0)
     NEWEST_SRC=$(find "$ROOT_DIR/backend/src" "$ROOT_DIR/backend/Cargo.toml" -type f \( -name "*.rs" -o -name "Cargo.toml" \) 2>/dev/null | xargs -r stat -c %Y 2>/dev/null | sort -n | tail -n 1 2>/dev/null)
@@ -259,17 +277,18 @@ fi
 if [ "$FRONTEND_NEEDS_BUILD" = "true" ]; then
     echo "Building frontend..."
     cd "$ROOT_DIR/frontend"
-    # Use npm ci if package-lock.json exists and is in sync, otherwise use npm install
-    if [ -f "package-lock.json" ]; then
-        if npm ci --prefer-offline --no-audit 2>&1 | tail -1; then
-            echo "✓ Dependencies installed with npm ci"
-        else
-            echo "⚠ package-lock.json out of sync, updating..."
-            npm install --prefer-offline --no-audit 2>&1 | tail -1
-        fi
-    else
-        npm install --prefer-offline --no-audit 2>&1 | tail -1
-    fi
+    echo "Installing npm dependencies (npm install)..."
+    npm install --prefer-offline --no-audit 2>&1 | tail -1 || {
+        echo "ERROR: npm install failed"
+        exit 1
+    }
+
+    echo "Updating npm packages to latest compatible versions (npm update)..."
+    npm update --no-audit 2>&1 | tail -1 || echo "⚠ npm update failed (continuing with installed versions)"
+
+    echo "Running npm audit fix (best-effort)..."
+    npm audit fix --force --legacy-peer-deps 2>&1 | tail -1 || echo "⚠ npm audit fix failed or requires manual review"
+
     echo "Running npm run build..."
     # Build with Turnstile site key if provided
     if [ -n "${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}" ]; then
